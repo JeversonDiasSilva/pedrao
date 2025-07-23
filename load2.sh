@@ -30,8 +30,10 @@ declare -A CORES=(
 # ==== FUNÇÕES ====
 
 iniciar_contagem() {
-    touch "$TIME_TMP"
+    mkdir -p "$DEV_PATH"
+    : > "$TIME_TMP"  # Garante criação e limpeza
 
+    # Lê e valida o valor de créditos
     if [ -f "$COUNT_FILE" ]; then
         read -r count < "$COUNT_FILE"
         if ! [[ "$count" =~ ^[0-9]+$ ]]; then
@@ -41,31 +43,32 @@ iniciar_contagem() {
         echo "$count" > "$COUNT_FILE"
     else
         echo "Arquivo $COUNT_FILE não encontrado!"
+        return 1
     fi
 
-    if [ -f "$TIME_TMP" ]; then
-        tempo_game=$(grep -oP "(?<=^tempo_game=)[0-9]+" "$CONFIG_FILE")
-        [[ -z "$tempo_game" ]] && tempo_game=1
-        tempo_segundos=$((tempo_game * 60))
+    # Lê tempo de jogo em minutos, converte e valida
+    tempo_game=$(grep -oP "(?<=^tempo_game=)[0-9]+" "$CONFIG_FILE" 2>/dev/null)
+    [[ -z "$tempo_game" || ! "$tempo_game" =~ ^[0-9]+$ ]] && tempo_game=1
+    tempo_segundos=$((tempo_game * 60))
+    echo "$tempo_segundos" > "$TEMPO_JOGO"
+
+    last_modified=$(stat --format=%Y "$COUNT_FILE")
+
+    # Contagem regressiva
+    while [ "$tempo_segundos" -gt 0 ]; do
+        [[ ! -f "$TIME_TMP" ]] && echo "Contagem cancelada: time.tmp removido." && break
+        current_modified=$(stat --format=%Y "$COUNT_FILE")
+        [[ "$last_modified" != "$current_modified" ]] && echo "Contagem interrompida: count.txt alterado." && break
+
+        tempo_segundos=$((tempo_segundos - 1))
         echo "$tempo_segundos" > "$TEMPO_JOGO"
+        sleep 1
+    done
 
-        last_modified=$(stat --format=%Y "$COUNT_FILE")
-
-        while [ "$tempo_segundos" -gt 0 ]; do
-            [[ ! -f "$TIME_TMP" ]] && echo "Interrompido por remoção do time.tmp" && break
-            current_modified=$(stat --format=%Y "$COUNT_FILE")
-            [[ "$last_modified" != "$current_modified" ]] && echo "Modificação detectada no count.txt, interrompendo." && break
-
-            tempo_segundos=$((tempo_segundos - 1))
-            echo "$tempo_segundos" > "$TEMPO_JOGO"
-            sleep 1
-        done
-
-        if [ "$tempo_segundos" -le 0 ]; then
-            pkill retroarch
-            rm -f "$TEMPO_JOGO" "$TIME_TMP"
-            echo "Tempo esgotado. RetroArch finalizado!"
-        fi
+    if [ "$tempo_segundos" -le 0 ]; then
+        pkill retroarch
+        rm -f "$TEMPO_JOGO" "$TIME_TMP"
+        echo "Tempo esgotado. RetroArch finalizado!"
     fi
 }
 
@@ -82,10 +85,12 @@ launch_with_countdown() {
 }
 
 play_no_credit_sound() {
-    mpv "$NO_CREDIT_SOUND" >/dev/null 2>&1 || aplay "${NO_CREDIT_SOUND%.mp3}.wav" 2>/dev/null
+    command -v mpv >/dev/null && mpv "$NO_CREDIT_SOUND" >/dev/null 2>&1
 }
 
 # ==== VERIFICA CRÉDITOS ====
+
+mkdir -p "$DEV_PATH"
 
 if [ -f "$COUNT_FILE" ]; then
     read -r CREDITOS < "$COUNT_FILE"
@@ -102,10 +107,10 @@ if [ "$CREDITOS" -le 0 ]; then
     exit 1
 fi
 
-# ==== INICIALIZAÇÃO ====
-
+# ==== GARANTIR LIMPEZA ====
 trap 'kill $(jobs -p) 2>/dev/null' EXIT
 
+# ==== EXECUÇÃO ====
 case "$SISTEMA_DIR" in
     "/userdata/roms/windows")
         Launcher_on
@@ -141,4 +146,3 @@ case "$SISTEMA_DIR" in
         fi
         ;;
 esac
-
