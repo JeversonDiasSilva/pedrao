@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Icon=/userdata/system/.dev/scripts/CONFIG/icon/icon.png
+Exec=/userdata/system/.dev/scripts/CONFIG/config-sistema.py
+Terminal=false
+Type=Application
+Categories=Game;batocera.linux;
+Name=CONFIGURAR COMERCIAL
