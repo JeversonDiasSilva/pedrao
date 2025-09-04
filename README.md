@@ -1,6 +1,10 @@
-# pedrao
+# Pedraoinfo
+
+<br>
 
 # PCSX2 LIGHT
+
+<br>
 
 <h2>Instalação</h2>
 
